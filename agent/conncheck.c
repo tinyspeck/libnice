@@ -45,6 +45,7 @@
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif
+#define SLACK_CHANGE
 
 #include <errno.h>
 #include <string.h>
@@ -465,6 +466,43 @@ static gboolean priv_conn_check_tick (gpointer pointer)
   return ret;
 }
 
+#ifdef SLACK_CHANGE
+static CandidateCheckPair *priv_keepalive_find_next (CandidatePair *p)
+{
+  CandidatePairKeepalive *k = &p->keepalive;
+  NiceAgent *agent = k->agent;
+  Stream *stream;
+  CandidateCheckPair *pair = NULL;
+  GSList *i;
+  guint64 max_priority = 0;
+
+  stream = agent_find_stream(agent, k->stream_id);
+  if (stream == NULL) return NULL;
+
+  for (i = stream->conncheck_list; i ; i = i->next) {
+    CandidateCheckPair *cp = i->data;
+    if (cp->component_id != k->component_id ||
+        (cp->local == p->local && cp->remote == p->remote) ||
+        !cp->nominated) {
+       continue;
+     }
+
+     if (cp->priority > max_priority) {
+       max_priority = cp->priority;
+       pair = cp;
+     }
+  }
+
+  if (pair) {
+    nice_debug ("Agent %p : Pair %p with s/c-id %u/%u (%s) chosen in keepalive next.", agent, pair, pair->stream_id, pair->component_id, pair->foundation);
+  }
+
+  return pair;
+}
+
+static gboolean priv_update_selected_pair (NiceAgent *agent, Component *component, CandidateCheckPair *pair);
+#endif // SLACK_CHANGE
+
 static gboolean priv_conn_keepalive_retransmissions_tick (gpointer pointer)
 {
   CandidatePair *pair = (CandidatePair *) pointer;
@@ -503,11 +541,37 @@ static gboolean priv_conn_keepalive_retransmissions_tick (gpointer pointer)
 
           pair->keepalive.stun_message.buffer = NULL;
         } else {
-          nice_debug ("Agent %p : Keepalive conncheck timed out!! "
-              "peer probably lost connection", pair->keepalive.agent);
-          agent_signal_component_state_change (pair->keepalive.agent,
-              pair->keepalive.stream_id, pair->keepalive.component_id,
-              NICE_COMPONENT_STATE_FAILED);
+#ifdef SLACK_CHANGE
+          if (pair->keepalive.agent->compatibility == NICE_COMPATIBILITY_GOOGLE) {
+#endif // SLACK_CHANGE
+            nice_debug ("Agent %p : Keepalive conncheck timed out!! "
+                "peer probably lost connection", pair->keepalive.agent);
+            agent_signal_component_state_change (pair->keepalive.agent,
+                pair->keepalive.stream_id, pair->keepalive.component_id,
+                NICE_COMPONENT_STATE_FAILED);
+#ifdef SLACK_CHANGE
+          } else {
+            CandidateCheckPair *next_pair;
+            NiceAgent *agent;
+            Stream *stream;
+            Component *component;
+
+            nice_debug ("Agent %p : Keepalive conncheck timed out!! "
+                "peer probably lost connection", pair->keepalive.agent);
+            //
+            // Look for another nominated pair. If there is one, switch
+            // to that.
+            //
+            next_pair = priv_keepalive_find_next(pair);
+            if (next_pair != NULL) {
+              agent = pair->keepalive.agent;
+              agent_find_component(agent, pair->keepalive.stream_id, pair->keepalive.component_id, &stream, &component);
+              g_assert(component);
+              memset (&component->selected_pair, 0, sizeof(CandidatePair));
+	      priv_update_selected_pair (agent, component, next_pair);
+            }
+          }
+#endif // SLACK_CHANGE
         }
         break;
       }
@@ -627,6 +691,7 @@ static gboolean priv_conn_keepalive_tick_unlocked (NiceAgent *agent)
             }
           }
         } else {
+#ifndef SLACK_CHANGE
           buf_len = stun_usage_bind_keepalive (&agent->stun_agent,
               &p->keepalive.stun_message, p->keepalive.stun_buffer,
               sizeof(p->keepalive.stun_buffer));
@@ -637,6 +702,51 @@ static gboolean priv_conn_keepalive_tick_unlocked (NiceAgent *agent)
 
             nice_debug ("Agent %p : stun_bind_keepalive for pair %p res %d.",
                 agent, p, (int) buf_len);
+          }
+#else // SLACK_CHANGE
+          //
+          // Send STUN binding request (as opposed to STUN binding
+          // indication above). Binding request should be replied to,
+          // binding indication do not need a reply. This binding
+          // request is not fully properly constructed and gets a
+          // binding request error response from the remote side,
+          // but that is enough for keepalive purposes
+          //
+          buf_len = stun_usage_bind_create (&agent->stun_agent,
+              &p->keepalive.stun_message, p->keepalive.stun_buffer,
+              sizeof(p->keepalive.stun_buffer));
+
+          if (buf_len > 0) {
+            //
+            // Original binding request + 2 retransmissions. With a timeout
+            // of 250 ms for the first request and doubling for subsequent tries,
+            // a failure will happen in 1.75 seconds.
+            //
+            stun_timer_start (&p->keepalive.timer, 250, 2);
+
+            agent->media_after_tick = FALSE;
+
+            nice_socket_send (p->local->sockptr, &p->remote->addr, buf_len,
+                (gchar *)p->keepalive.stun_buffer);
+
+            if (p->keepalive.tick_source != NULL) {
+              g_source_destroy (p->keepalive.tick_source);
+              g_source_unref (p->keepalive.tick_source);
+              p->keepalive.tick_source = NULL;
+            }
+
+            p->keepalive.stream_id = stream->id;
+            p->keepalive.component_id = component->id;
+            p->keepalive.agent = agent;
+
+            p->keepalive.tick_source =
+                agent_timeout_add_with_context (p->keepalive.agent,
+                    stun_timer_remainder (&p->keepalive.timer),
+                    priv_conn_keepalive_retransmissions_tick, p);
+
+            nice_debug ("Agent %p : stun_bind_keepalive for pair %p res %d.",
+                agent, p, (int) buf_len);
+#endif // SLACK_CHANGE
           } else {
             ++errors;
           }
@@ -885,7 +995,15 @@ gboolean conn_check_schedule_next (NiceAgent *agent)
 
   /* step: also start the keepalive timer */
   if (agent->keepalive_timer_source == NULL) {
+#ifndef SLACK_CHANGE
     agent->keepalive_timer_source = agent_timeout_add_with_context (agent, NICE_AGENT_TIMER_TR_DEFAULT, priv_conn_keepalive_tick, agent);
+#else // SLACK_CHANGE
+    //
+    // NOTE: ICE standard says a minimum of 15 seconds, this is a violation.
+    // Using an interval of 2 seconds for faster detection of a path failure
+    //
+    agent->keepalive_timer_source = agent_timeout_add_with_context (agent, 2000, priv_conn_keepalive_tick, agent);
+#endif // SLACK_CHANGE
   }
 
   nice_debug ("Agent %p : conn_check_schedule_next returning %d", agent, res);

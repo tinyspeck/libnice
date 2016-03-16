@@ -43,6 +43,7 @@
 #else
 #define NICEAPI_EXPORT
 #endif
+#define SLACK_CHANGE
 
 #include <glib.h>
 
@@ -2357,7 +2358,9 @@ _nice_agent_recv (
     }
   }
 
+#ifndef SLACK_CHANGE
   agent->media_after_tick = TRUE;
+#endif
 
   if (stun_message_validate_buffer_length ((uint8_t *) buf, (size_t) len,
       (agent->compatibility != NICE_COMPATIBILITY_OC2007 &&
@@ -2370,6 +2373,27 @@ _nice_agent_recv (
           &from, buf, len))
     /* handled STUN message*/
     return 0;
+
+#ifdef SLACK_CHANGE
+  /*
+   * Moving media_after_tick from above. Otherwise, this would have
+   * been marked TRUE even for STUN traffic (which might be the intention,
+   * but when multiple interfaces on the remote side is active and each
+   * is sending STUN binding request and if one of the interfaces dies,
+   * this will mark media for STUN received on other interface. Avoiding
+   * that (see below about the pain of this flag))
+   *
+   * Ideally this needs more work. But, this HACK works for us now as
+   * we have a single stream per agent and single component per stream.
+   * This flag is per agent. So, it cannot detect a particular candidate
+   * pair of a particular component failing. keepalives are done on
+   * selected candidate pair of each component of each stream. So, there
+   * needs to be a flag per component, not one per agent. But, like
+   * mentioned above, it works for our case as we have single component
+   * in a single stream in an agent
+   */
+  agent->media_after_tick = TRUE;
+#endif
 
   /* unhandled STUN, pass to client */
   return len;
