@@ -702,7 +702,6 @@ static gboolean priv_conn_keepalive_tick_unlocked (NiceAgent *agent)
 
             nice_debug ("Agent %p : stun_bind_keepalive for pair %p res %d.",
                 agent, p, (int) buf_len);
-          }
 #else // SLACK_CHANGE
           //
           // Send STUN binding request (as opposed to STUN binding
