@@ -43,7 +43,7 @@
 #else
 #define NICEAPI_EXPORT
 #endif
-#define SLACK_CHANGE
+//#define SLACK_CHANGE
 
 #include <glib.h>
 

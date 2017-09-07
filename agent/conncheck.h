@@ -41,6 +41,7 @@
 #define _NICE_CONNCHECK_H
 
 /* note: this is a private header to libnice */
+#define SLACK_CHANGE_NO_CONNCHECK
 
 #include "agent.h"
 #include "stream.h"
@@ -82,6 +83,9 @@ struct _CandidateCheckPair
 };
 
 int conn_check_add_for_candidate (NiceAgent *agent, guint stream_id, Component *component, NiceCandidate *remote);
+#if defined(SLACK_CHANGE_NO_CONNCHECK)
+int conn_check_add_for_candidate_with_nice_check_state (NiceAgent *agent, guint stream_id, Component *component, NiceCandidate *remote, NiceCheckState nice_check_state);
+#endif
 int conn_check_add_for_local_candidate (NiceAgent *agent, guint stream_id, Component *component, NiceCandidate *local);
 void conn_check_free_item (gpointer data, gpointer user_data);
 void conn_check_free (NiceAgent *agent);

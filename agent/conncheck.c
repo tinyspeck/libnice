@@ -45,7 +45,7 @@
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif
-#define SLACK_CHANGE
+//#define SLACK_CHANGE
 
 #include <errno.h>
 #include <string.h>
@@ -1403,7 +1403,11 @@ static void priv_add_new_check_pair (NiceAgent *agent, guint stream_id, Componen
   }
 }
 
+#if defined(SLACK_CHANGE_NO_CONNCHECK)
+static gboolean priv_conn_check_add_for_candidate_pair (NiceAgent *agent, guint stream_id, Component *component, NiceCandidate *local, NiceCandidate *remote, NiceCheckState nice_check_state)
+#else
 static gboolean priv_conn_check_add_for_candidate_pair (NiceAgent *agent, guint stream_id, Component *component, NiceCandidate *local, NiceCandidate *remote)
+#endif
 {
   gboolean ret = FALSE;
   /* note: do not create pairs where the local candidate is
@@ -1419,7 +1423,11 @@ static gboolean priv_conn_check_add_for_candidate_pair (NiceAgent *agent, guint 
   if (local->transport == remote->transport &&
      local->addr.s.addr.sa_family == remote->addr.s.addr.sa_family) {
 
+#if defined(SLACK_CHANGE_NO_CONNCHECK)
+    priv_add_new_check_pair (agent, stream_id, component, local, remote, nice_check_state, FALSE);
+#else
     priv_add_new_check_pair (agent, stream_id, component, local, remote, NICE_CHECK_FROZEN, FALSE);
+#endif
     ret = TRUE;
     if (component->state < NICE_COMPONENT_STATE_CONNECTED) {
       agent_signal_component_state_change (agent,
@@ -1458,7 +1466,11 @@ int conn_check_add_for_candidate (NiceAgent *agent, guint stream_id, Component *
   for (i = component->local_candidates; i ; i = i->next) {
 
     NiceCandidate *local = i->data;
+#if defined(SLACK_CHANGE_NO_CONNCHECK)
+    ret = priv_conn_check_add_for_candidate_pair (agent, stream_id, component, local, remote, NICE_CHECK_FROZEN);
+#else
     ret = priv_conn_check_add_for_candidate_pair (agent, stream_id, component, local, remote);
+#endif
 
     if (ret) {
       ++added;
@@ -1467,6 +1479,27 @@ int conn_check_add_for_candidate (NiceAgent *agent, guint stream_id, Component *
 
   return added;
 }
+
+#if defined(SLACK_CHANGE_NO_CONNCHECK)
+int conn_check_add_for_candidate_with_nice_check_state (NiceAgent *agent, guint stream_id, Component *component, NiceCandidate *remote, NiceCheckState nice_check_state)
+{
+  GSList *i;
+  int added = 0;
+  int ret = 0;
+
+  for (i = component->local_candidates; i ; i = i->next) {
+
+    NiceCandidate *local = i->data;
+    ret = priv_conn_check_add_for_candidate_pair (agent, stream_id, component, local, remote, nice_check_state);
+
+    if (ret) {
+      ++added;
+    }
+  }
+
+  return added;
+}
+#endif
 
 /*
  * Forms new candidate pairs by matching the new local candidate
@@ -1487,7 +1520,11 @@ int conn_check_add_for_local_candidate (NiceAgent *agent, guint stream_id, Compo
   for (i = component->remote_candidates; i ; i = i->next) {
 
     NiceCandidate *remote = i->data;
+#if defined(SLACK_CHANGE_NO_CONNCHECK)
+    ret = priv_conn_check_add_for_candidate_pair (agent, stream_id, component, local, remote, NICE_CHECK_FROZEN);
+#else
     ret = priv_conn_check_add_for_candidate_pair (agent, stream_id, component, local, remote);
+#endif
 
     if (ret) {
       ++added;
@@ -3065,7 +3102,11 @@ gboolean conn_check_handle_inbound_stun (NiceAgent *agent, Stream *stream,
             local_candidate,
             remote_candidate2 ? remote_candidate2 : remote_candidate);
         if(remote_candidate)
+#if !defined(SLACK_CHANGE_NO_CONNCHECK)
           conn_check_add_for_candidate (agent, stream->id, component, remote_candidate);
+#else
+          conn_check_add_for_candidate_with_nice_check_state (agent, stream->id, component, remote_candidate, NICE_CHECK_DISCOVERED);
+#endif
       }
 
       priv_reply_to_conn_check (agent, stream, component, remote_candidate,
