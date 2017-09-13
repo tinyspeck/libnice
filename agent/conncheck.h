@@ -41,7 +41,7 @@
 #define _NICE_CONNCHECK_H
 
 /* note: this is a private header to libnice */
-#define SLACK_CHANGE_NO_CONNCHECK
+//#define SLACK_CHANGE_NO_CONNCHECK
 
 #include "agent.h"
 #include "stream.h"
