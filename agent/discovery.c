@@ -62,6 +62,8 @@
 #include "stun/usages/turn.h"
 #include "socket.h"
 
+#define SLACK_CHANGE_REMOTE_FOUNDATION
+
 static inline int priv_timer_expired (GTimeVal *timer, GTimeVal *now)
 {
   return (now->tv_sec == timer->tv_sec) ?
@@ -362,6 +364,7 @@ static void priv_assign_remote_foundation (NiceAgent *agent, NiceCandidate *cand
       if (c->id == candidate->component_id)
         component = c;
 
+#if !defined(SLACK_CHANGE_REMOTE_FOUNDATION)
       for (k = c->remote_candidates; k; k = k->next) {
 	NiceCandidate *n = k->data;
 	NiceAddress temp = n->addr;
@@ -393,6 +396,7 @@ static void priv_assign_remote_foundation (NiceAgent *agent, NiceCandidate *cand
 	  return;
 	}
       }
+#endif
     }
   }
 
