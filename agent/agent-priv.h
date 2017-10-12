@@ -141,12 +141,23 @@ void agent_signal_gathering_done (NiceAgent *agent);
 void agent_lock (void);
 void agent_unlock (void);
 
+#if defined(SLACK_CHANGE_ADDRESS_IN_SELECTED_PAIR)
+void agent_signal_new_selected_pair (
+  NiceAgent *agent,
+  guint stream_id,
+  guint component_id,
+  const gchar *local_foundation,
+  const gchar *remote_foundation,
+  const NiceAddress *local_addr,
+  const NiceAddress *remote_addr);
+#else
 void agent_signal_new_selected_pair (
   NiceAgent *agent,
   guint stream_id,
   guint component_id,
   const gchar *local_foundation,
   const gchar *remote_foundation);
+#endif
 
 void agent_signal_component_state_change (
   NiceAgent *agent,

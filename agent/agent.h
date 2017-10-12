@@ -117,6 +117,7 @@ typedef struct _NiceAgent NiceAgent;
 #include "candidate.h"
 #include "debug.h"
 
+#define SLACK_CHANGE_ADDRESS_IN_SELECTED_PAIR
 
 G_BEGIN_DECLS
 

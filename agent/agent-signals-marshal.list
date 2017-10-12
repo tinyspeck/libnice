@@ -2,6 +2,8 @@
 VOID:UINT,UINT,UINT
 # new-selected-pair
 VOID:UINT,UINT,STRING,STRING
+# new-selected-pair
+VOID:UINT,UINT,STRING,STRING,STRING,UINT,STRING,UINT
 # new-candidate
 VOID:UINT,UINT,STRING
 # candidate-gathering-done
