@@ -149,7 +149,10 @@ void agent_signal_new_selected_pair (
   const gchar *local_foundation,
   const gchar *remote_foundation,
   const NiceAddress *local_addr,
-  const NiceAddress *remote_addr);
+  const NiceAddress *remote_addr,
+  guint local_priority,
+  guint remote_priority,
+  guint64 pair_priority);
 #else
 void agent_signal_new_selected_pair (
   NiceAgent *agent,

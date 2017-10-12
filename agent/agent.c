@@ -567,19 +567,19 @@ nice_agent_class_init (NiceAgentClass *klass)
           NULL,
           NULL,
 #if defined(SLACK_CHANGE_ADDRESS_IN_SELECTED_PAIR)
-          agent_marshal_VOID__UINT_UINT_STRING_STRING_STRING_UINT_STRING_UINT,
+          agent_marshal_VOID__UINT_UINT_STRING_STRING_STRING_UINT_STRING_UINT_UINT_UINT_UINT64,
 #else
           agent_marshal_VOID__UINT_UINT_STRING_STRING,
 #endif
           G_TYPE_NONE,
 #if defined(SLACK_CHANGE_ADDRESS_IN_SELECTED_PAIR)
-          8,
+          11,
 #else
           4,
 #endif
           G_TYPE_UINT, G_TYPE_UINT, G_TYPE_STRING, G_TYPE_STRING,
 #if defined(SLACK_CHANGE_ADDRESS_IN_SELECTED_PAIR)
-          G_TYPE_STRING, G_TYPE_UINT, G_TYPE_STRING, G_TYPE_UINT,
+          G_TYPE_STRING, G_TYPE_UINT, G_TYPE_STRING, G_TYPE_UINT, G_TYPE_UINT, G_TYPE_UINT, G_TYPE_UINT64,
 #endif
           G_TYPE_INVALID);
 
@@ -1262,7 +1262,17 @@ void agent_signal_initial_binding_request_received (NiceAgent *agent, Stream *st
 }
 
 #if defined(SLACK_CHANGE_ADDRESS_IN_SELECTED_PAIR)
-void agent_signal_new_selected_pair (NiceAgent *agent, guint stream_id, guint component_id, const gchar *local_foundation, const gchar *remote_foundation, const NiceAddress *local_addr, const NiceAddress *remote_addr)
+void agent_signal_new_selected_pair (
+  NiceAgent *agent,
+  guint stream_id,
+  guint component_id,
+  const gchar *local_foundation,
+  const gchar *remote_foundation,
+  const NiceAddress *local_addr,
+  const NiceAddress *remote_addr,
+  guint local_priority,
+  guint remote_priority,
+  guint64 pair_priority)
 #else
 void agent_signal_new_selected_pair (NiceAgent *agent, guint stream_id, guint component_id, const gchar *local_foundation, const gchar *remote_foundation)
 #endif
@@ -1303,7 +1313,8 @@ void agent_signal_new_selected_pair (NiceAgent *agent, guint stream_id, guint co
   g_signal_emit (agent, signals[SIGNAL_NEW_SELECTED_PAIR], 0,
       stream_id, component_id, lf_copy, rf_copy,
       local_ip, nice_address_get_port(local_addr),
-      remote_ip, nice_address_get_port(remote_addr));
+      remote_ip, nice_address_get_port(remote_addr),
+      local_priority, remote_priority, pair_priority);
 #else
   g_signal_emit (agent, signals[SIGNAL_NEW_SELECTED_PAIR], 0,
       stream_id, component_id, lf_copy, rf_copy);
@@ -2900,7 +2911,9 @@ nice_agent_set_selected_pair (
   /* step: set the selected pair */
   component_update_selected_pair (component, &pair);
 #if defined(SLACK_CHANGE_ADDRESS_IN_SELECTED_PAIR)
-  agent_signal_new_selected_pair (agent, stream_id, component_id, lfoundation, rfoundation, &pair.local->addr, &pair.remote->addr);
+  agent_signal_new_selected_pair (agent, stream_id, component_id, lfoundation, rfoundation,
+    &pair.local->addr, &pair.remote->addr,
+    pair.local->priority, pair.remote->priority, pair.priority);
 #else
   agent_signal_new_selected_pair (agent, stream_id, component_id, lfoundation, rfoundation);
 #endif
@@ -2999,7 +3012,10 @@ nice_agent_set_selected_remote_candidate (
       lcandidate->foundation,
       candidate->foundation,
       &lcandidate->addr,
-      &candidate->addr);
+      &candidate->addr,
+      lcandidate->priority,
+      candidate->priority,
+      agent_candidate_pair_priority(agent, lcandidate, candidate));
 #else
   agent_signal_new_selected_pair (agent, stream_id, component_id,
       lcandidate->foundation,

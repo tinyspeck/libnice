@@ -1245,7 +1245,9 @@ static gboolean priv_update_selected_pair (NiceAgent *agent, Component *componen
     priv_conn_keepalive_tick_unlocked (agent);
 
 #if defined(SLACK_CHANGE_ADDRESS_IN_SELECTED_PAIR)
-    agent_signal_new_selected_pair (agent, pair->stream_id, component->id, pair->local->foundation, pair->remote->foundation, &pair->local->addr, &pair->remote->addr);
+    agent_signal_new_selected_pair (agent, pair->stream_id, component->id, pair->local->foundation, pair->remote->foundation,
+      &pair->local->addr, &pair->remote->addr,
+      pair->local->priority, pair->remote->priority, pair->priority);
 #else
     agent_signal_new_selected_pair (agent, pair->stream_id, component->id, pair->local->foundation, pair->remote->foundation);
 #endif
